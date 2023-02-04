@@ -2,25 +2,28 @@ import os,re
 import discord
 from dotenv import load_dotenv
 import alpaca_trade_api as alpaca
-from datetime import datetime
+from paulpaca import ALPI as api
+from datetime import datetime, timedelta
 #import time
 #import csv
 #import json
 import requests
 import matplotlib.pyplot as plt
-from replit import db
+import pickledb
 
 #set up python env (used to access server environment variables)
 load_dotenv()
 
-
-
+#load db
+db = pickledb.load("DBs/EV9D9.db", True)
+print(db)
 #grab the accounts table
-accounts = db.get('Accounts')
-if accounts == None:
-  print("Accounts table does not exist, creating...")
-  accounts = {}
-  db['Accounts'] = accounts
+try:
+    accounts = db.get('Accounts')
+except AttributeError as ae:
+    print("Accounts table does not exist, creating...")
+    accounts = {}
+    db['Accounts'] = accounts
 
 #grab the prices table
 db_prices = db.get('Prices')
@@ -42,17 +45,18 @@ TOKEN = os.getenv('DISCORD_TOKEN')
 SERVER = os.getenv('DISCORD_SERVER')
 
 #initialize discord client
-client = discord.Client()
+intents = discord.Intents.all()
+client = discord.Client(intents=intents)
 
 #initialize alpaca api
-api = alpaca.REST(os.getenv('API_KEY'), os.getenv('SECRET_KEY'), os.getenv('ENDPOINT_URL'))
-clock = api.get_clock()
+paper_api = alpaca.REST(os.getenv('API_KEY'), os.getenv('SECRET_KEY'), os.getenv('PAPER_URL'))
+clock = paper_api.get_clock()
 
 #create ticker-name -> company name dict
 my_ticker_names = {}
-my_data = requests.get('https://api.iextrading.com/1.0/ref-data/symbols').json()
+my_data = paper_api.list_assets(status='active') 
 for x in my_data:
-    my_ticker_names[x['symbol']] = x['name']
+    my_ticker_names[x.symbol] = x.name
 
 def process_date(my_date):
     cur_day = datetime.today().weekday()
@@ -86,7 +90,7 @@ def write_account_info():
 #check to see if market is open
 def is_clock_open():
     global clock
-    clock = api.get_clock()
+    clock = paper_api.get_clock()
     return clock.is_open
 
 #send a message to the specified discord channel
@@ -105,10 +109,14 @@ async def price_command(message):
         ticker = msg.group(1).upper()
         price_day = 0.0
         try:
+            today = datetime.today()
+            yesterday = today - timedelta(days=1)
+            dbyesterday = today - timedelta(days=2)
+
             if is_clock_open():
-                price_day = api.get_barset(ticker, 'day', limit=1)[ticker][0].c
+                price_day = api.get_bars(ticker, 'day', start=today, end=yesterday)[ticker][0].c
             else:
-                price_day = api.get_barset(ticker, 'day', limit=2)[ticker][0].c
+                price_day = api.get_bars(ticker, 'day', start=yesterday, end=dbyesterday)[ticker][0].c
                 price = get_prices()[ticker]
         except IndexError:
             await message.channel.send('Invalid ticker! Could not retrieve info for ' + ticker)
@@ -309,9 +317,9 @@ async def account_command(message):
         cur_price = my_prices[p]
         total_account_value += amount * cur_price
         if clock.is_open:
-            price_day = api.get_barset(p, 'day', limit=1)[p][0].c
+            price_day = api.get_bars(p, 'day', limit=1)[p][0].c
         else:
-            price_day = api.get_barset(p, 'day', limit=2)[p][0].c
+            price_day = api.get_bars(p, 'day', limit=2)[p][0].c
             
         delta = cur_price - price_day
         total_delta += delta * amount    

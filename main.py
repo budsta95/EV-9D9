@@ -11,8 +11,8 @@ def start():
   loop.create_task(db_updater.run())
   print("Starting EV9D9")
   loop.create_task(EV9D9.start_discord_client())
-  print("Starting keepalive server")
-  loop.create_task(keep_alive.keep_alive())
+  #print("Starting keepalive server")
+  #loop.create_task(keep_alive.keep_alive())
 
   Thread(target=loop.run_forever())
 

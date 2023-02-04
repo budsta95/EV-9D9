@@ -4,7 +4,9 @@ import datetime
 import asyncio
 import alpaca_trade_api as alpaca
 from EV9D9 import send_alert
-from replit import db
+import pickledb
+
+db = pickledb.load("DBs/EV9D9.db", True)
 
 #set up python env (used to access server environment variables)
 load_dotenv()
@@ -24,9 +26,10 @@ if db_prices == None:
 
 #get alpaca api related stuff
 api = alpaca.REST(os.getenv('API_KEY'), os.getenv('SECRET_KEY'), os.getenv('ENDPOINT_URL'))
-clock = api.get_clock()
+paper_api = alpaca.REST(os.getenv('API_KEY'), os.getenv('SECRET_KEY'), os.getenv('PAPER_URL'))
+clock = paper_api.get_clock()
 print(clock)
-assets = api.list_assets()
+assets = paper_api.list_assets()
 prices = {}
 for a in assets:
     if a.symbol == 'SPY':
@@ -54,7 +57,7 @@ def read_accounts_to_db():
 #checks to see if market is open    
 def is_clock_open():
     global clock
-    clock = api.get_clock()
+    clock = paper_api.get_clock()
     return clock.is_open
 
 #update the prices table in the db
